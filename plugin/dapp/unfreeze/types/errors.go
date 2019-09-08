@@ -17,4 +17,6 @@ var (
 	ErrNoPrivilege = errors.New("ErrNoPrivilege")
 	// ErrTerminated 已经被取消过了
 	ErrTerminated = errors.New("ErrTerminated")
+	//ErrUnfreezeNotRevoke 不可撤销
+	ErrUnfreezeNotRevoke = errors.New("ErrUnfreezeNotRevoke")
 )

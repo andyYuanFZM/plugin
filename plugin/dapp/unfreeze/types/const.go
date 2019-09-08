@@ -41,8 +41,11 @@ var (
 
 	FixAmountX      = "FixAmount"
 	LeftProportionX = "LeftProportion"
-	SupportMeans    = []string{"FixAmount", "LeftProportion"}
+	DecreaseAmountX = "DecreaseAmount"
+	SupportMeans    = []string{"FixAmount", "LeftProportion","DecreaseAmount"}
 
 	ForkTerminatePartX = "ForkTerminatePart"
 	ForkUnfreezeIDX    = "ForkUnfreezeIDX"
+	//添加是否可撤销
+	ForkIsRevokeX 	   = "ForkIsRevokeX"
 )

@@ -44,6 +44,7 @@ func createCmd() *cobra.Command {
 
 	cmd.AddCommand(fixAmountCmd())
 	cmd.AddCommand(leftCmd())
+	cmd.AddCommand(decreaseAmountCmd())
 	return cmd
 }
 
@@ -185,6 +186,83 @@ func left(cmd *cobra.Command, args []string) {
 
 	if tenThousandth <= 0 || tenThousandth >= 10000 {
 		fmt.Fprintf(os.Stderr, "tenThousandth must be 0~10000")
+		return
+	}
+
+	params := &rpctypes.CreateTxIn{
+		Execer:     types.ExecName(pty.UnfreezeX),
+		ActionName: pty.Action_CreateUnfreeze,
+		Payload:    types.MustPBToJSON(create),
+	}
+
+	rpcLaddr, _ := cmd.Flags().GetString("rpc_laddr")
+	ctx := jsonclient.NewRPCCtx(rpcLaddr, "Chain33.CreateTransaction", params, nil)
+	ctx.RunWithoutMarshal()
+}
+
+
+func decreaseAmountCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "decrease_amount",
+		Short: "create decrease amount means unfreeze construct",
+		Run:   decrease,
+	}
+	cmd = createFlag(cmd)
+	cmd.Flags().Int64P("ten_thousandth", "", 0, "input/10000 of total")
+	cmd.MarkFlagRequired("amount")
+
+	cmd.Flags().Int64P("period", "p", 0, "period in second")
+	cmd.MarkFlagRequired("period")
+
+	cmd.Flags().Int64P("frist_decrease_amount", "fda", 0, "frist decrease amount")
+	cmd.MarkFlagRequired("period")
+
+	cmd.Flags().Int64P("decrease_period", "dp", 0, "decrease period in second")
+	cmd.MarkFlagRequired("period")
+
+	cmd.Flags().Int64P("decrease_nums", "dn", 0, "decrease nums")
+	cmd.MarkFlagRequired("period")
+	return cmd
+}
+
+func decrease(cmd *cobra.Command, args []string) {
+	create, err := getCreateFlags(cmd)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+
+	tenThousandth, _ := cmd.Flags().GetInt64("ten_thousandth")
+	period, _ := cmd.Flags().GetInt64("period")
+	fristDecreaseAmount, _ := cmd.Flags().GetInt64("frist_decrease_amount")
+	decreasePeriod, _ := cmd.Flags().GetInt64("decrease_period")
+	decreaseNums, _ := cmd.Flags().GetInt64("decrease_nums")
+	create.Means = pty.DecreaseAmountX
+	create.MeansOpt = &pty.UnfreezeCreate_DecreaseAmount{
+		DecreaseAmount: &pty.DecreaseAmount{Period: period, TenThousandth: tenThousandth,FristDecreaseAmount:fristDecreaseAmount,DecreasePeriod:decreasePeriod,DecreaseNums:decreaseNums}}
+
+	if period <= 0 {
+		fmt.Fprintf(os.Stderr, "period must be positive interge")
+		return
+	}
+
+	if tenThousandth <= 0 || tenThousandth >= 10000 {
+		fmt.Fprintf(os.Stderr, "tenThousandth must be 0~10000")
+		return
+	}
+
+	if fristDecreaseAmount <= 0 {
+		fmt.Fprintf(os.Stderr, "fristDecreaseAmount must be > 0")
+		return
+	}
+
+	if decreasePeriod <= 0 {
+		fmt.Fprintf(os.Stderr, "decreasePeriod must be > 0")
+		return
+	}
+
+	if decreaseNums <= 0 {
+		fmt.Fprintf(os.Stderr, "decreaseNums must be > 0")
 		return
 	}
 

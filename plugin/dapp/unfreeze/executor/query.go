@@ -130,6 +130,7 @@ func fmtLocalUnfreeze(rows []*table.Row) (*pty.ReplyUnfreezes, error) {
 		}
 		v := &pty.ReplyUnfreeze{
 			UnfreezeID:  r.Unfreeze.UnfreezeID,
+			UnfreezeLabel:r.Unfreeze.UnfreezeLabel,
 			StartTime:   r.Unfreeze.StartTime,
 			AssetExec:   r.Unfreeze.AssetExec,
 			AssetSymbol: r.Unfreeze.AssetSymbol,
@@ -140,11 +141,15 @@ func fmtLocalUnfreeze(rows []*table.Row) (*pty.ReplyUnfreezes, error) {
 			Means:       r.Unfreeze.Means,
 			Terminated:  r.Unfreeze.Terminated,
 			Key:         r.TxIndex,
+			TerminateTime:r.TerminateTime,
+			IsRevoke:r.Unfreeze.IsRevoke,
 		}
 		if v.Means == pty.FixAmountX {
 			v.MeansOpt = &pty.ReplyUnfreeze_FixAmount{FixAmount: r.Unfreeze.GetFixAmount()}
 		} else if v.Means == pty.LeftProportionX {
 			v.MeansOpt = &pty.ReplyUnfreeze_LeftProportion{LeftProportion: r.Unfreeze.GetLeftProportion()}
+		} else if v.Means == pty.DecreaseAmountX {
+			v.MeansOpt = &pty.ReplyUnfreeze_DecreaseAmount{DecreaseAmount:r.Unfreeze.GetDecreaseAmount()}
 		}
 		results.Unfreeze = append(results.Unfreeze, v)
 	}

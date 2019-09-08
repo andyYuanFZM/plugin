@@ -27,6 +27,7 @@ func init() {
 	types.RegisterDappFork(name, "Enable", 0)
 	types.RegisterDappFork(name, ForkTerminatePartX, 1298600)
 	types.RegisterDappFork(name, ForkUnfreezeIDX, 1450000)
+	types.RegisterDappFork(name, ForkIsRevokeX, 3500000)
 }
 
 //getRealExecName

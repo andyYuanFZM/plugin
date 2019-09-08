@@ -78,7 +78,7 @@ func NewAddrTable(kvdb dbm.KV) *table.Table {
 	return t
 }
 
-func update(ldb *table.Table, unfreeze *pty.Unfreeze) error {
+func update(ldb *table.Table, unfreeze *pty.Unfreeze, terminateHeight, terminateTime int64) error {
 	xs, err := ldb.ListIndex("id", []byte(unfreeze.UnfreezeID), nil, 1, 0)
 	if err != nil || len(xs) != 1 {
 		uflog.Error("update query List failed", "key", unfreeze.UnfreezeID, "err", err, "len", len(xs))
@@ -91,6 +91,8 @@ func update(ldb *table.Table, unfreeze *pty.Unfreeze) error {
 
 	}
 	u.Unfreeze = unfreeze
+	u.TerminateHeight = terminateHeight
+	u.TerminateTime = terminateTime
 	return ldb.Update([]byte(u.TxIndex), u)
 }
 
