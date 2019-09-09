@@ -35,7 +35,7 @@ message Unfreeze {
     bool terminated = 20;
     //锁仓标签
     string unfreezeLabel = 21;
-    //是否撤销
+    //是否可撤销 true 不可撤销 false 可撤销
     bool isRevoke = 22;
 }
 
@@ -55,7 +55,7 @@ message LeftProportion {
 message DecreaseAmount {
     int64 period        = 1;//解锁周期
     int64 tenThousandth = 2;//递减比例 *10000
-    int64 fristDecreaseAmount = 3;//初次解锁量
+    int64 firstDecreaseAmount = 3;//初次解锁量
     int64 decreasePeriod = 4;//递减周期
     int64 decreaseNums = 5;//递减次数
 }

@@ -7,7 +7,6 @@ package executor
 import (
 	"github.com/33cn/chain33/types"
 	pty "github.com/33cn/plugin/plugin/dapp/unfreeze/types"
-	"fmt"
 )
 
 // Means 解冻算法接口
@@ -171,7 +170,7 @@ func (opt *decreaseAmount) setOpt(unfreeze *pty.Unfreeze, from *pty.UnfreezeCrea
 	if o == nil {
 		return nil, types.ErrInvalidParam
 	}
-	if o.Period <= 0 || o.TenThousandth <= 0 || o.TenThousandth >= 10000 || o.FristDecreaseAmount <=0 || o.FristDecreaseAmount >= from.TotalCount || o.DecreasePeriod <= 0 || o.DecreasePeriod < o.Period || o.DecreaseNums <= 0{
+	if o.Period <= 0 || o.TenThousandth <= 0 || o.TenThousandth >= 10000 || o.FirstDecreaseAmount <=0 || o.FirstDecreaseAmount >= from.TotalCount || o.DecreasePeriod <= 0 || o.DecreasePeriod < o.Period || o.DecreaseNums <= 0{
 		return nil, types.ErrInvalidParam
 	}
 	unfreeze.MeansOpt = &pty.Unfreeze_DecreaseAmount{DecreaseAmount:from.GetDecreaseAmount()}
@@ -195,16 +194,21 @@ func (opt *decreaseAmount) calcFrozen(unfreeze *pty.Unfreeze, now int64) (int64,
 	unfrozen := float64(0)
 	for i := int64(0); i < unfreezeTimes; i++ {
 		etime := i * means.Period + unfreeze.StartTime
+		//当前递减次数
 		tempDecreaseP := (etime -unfreeze.StartTime) / means.DecreasePeriod
-		//递减次数完了之后 一次性取出
+		//每解锁周期解锁量
+		tempDecreasePAmount := getDecreasePeriodAmount(tempDecreaseP,means.FirstDecreaseAmount,means.TenThousandth)
+		//递减次数完了之后 不在递减比列 解锁量固定
 		if tempDecreaseP > means.DecreaseNums {
-			break
+			tempDecreasePAmount = getDecreasePeriodAmount(unfreeze.GetDecreaseAmount().DecreaseNums+1,means.FirstDecreaseAmount,means.TenThousandth)
 		}
-		tempDecreasePAmount := getDecreasePeriodAmount(tempDecreaseP,means.FristDecreaseAmount,means.TenThousandth)
 		unfrozen += tempDecreasePAmount
-		//fmt.Println("递减次数：",tempDecreaseP,"解锁量：",tempDecreasePAmount)
+		if unfrozen > frozen {
+			unfrozen = frozen
+		}
+
 	}
-	fmt.Println("总冻结：",int64(frozen),"解冻次数：",unfreezeTimes,"已经解冻:",int64(unfrozen))
+	//fmt.Println("total：",int64(frozen),"unfreeze nums：",unfreezeTimes,"unfreeze amount:",int64(unfrozen))
 	return int64(frozen-unfrozen), nil
 }
 
