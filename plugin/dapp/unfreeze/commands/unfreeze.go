@@ -44,6 +44,7 @@ func createCmd() *cobra.Command {
 
 	cmd.AddCommand(fixAmountCmd())
 	cmd.AddCommand(leftCmd())
+	cmd.AddCommand(decreaseAmountCmd())
 	return cmd
 }
 
@@ -63,6 +64,11 @@ func createFlag(cmd *cobra.Command) *cobra.Command {
 	cmd.PersistentFlags().Int64P("start_ts", "", 0, "effect, UTC timestamp")
 	//cmd.MarkFlagRequired("start_ts")
 
+	cmd.PersistentFlags().StringP("unfreeze_label", "l", "", "the lable of unfreeze")
+	cmd.MarkFlagRequired("unfreeze_label")
+
+	cmd.PersistentFlags().StringP("is_revoke", "i","1", "unfreeze is revoke ?  true  not revoke | false able to revoke")
+	cmd.MarkFlagRequired("is_revoke")
 	return cmd
 }
 
@@ -79,7 +85,12 @@ func getCreateFlags(cmd *cobra.Command) (*pty.UnfreezeCreate, error) {
 	symbol, _ := cmd.Flags().GetString("asset_symbol")
 	total, _ := cmd.Flags().GetFloat64("total")
 	startTs, _ := cmd.Flags().GetInt64("start_ts")
-
+	revoke, _ := cmd.Flags().GetString("is_revoke")
+	isrevoke := false
+	if revoke == "1" || revoke == "t" || revoke == "true" {
+		 isrevoke = true
+	}
+	label, _ := cmd.Flags().GetString("unfreeze_label")
 	if err := checkAmount(total); err != nil {
 		return nil, types.ErrAmount
 	}
@@ -92,6 +103,8 @@ func getCreateFlags(cmd *cobra.Command) (*pty.UnfreezeCreate, error) {
 		TotalCount:  totalInt64,
 		Beneficiary: beneficiary,
 		Means:       "",
+		UnfreezeLabel:label,
+		IsRevoke:isrevoke,
 	}
 	return unfreeze, nil
 }
@@ -188,6 +201,83 @@ func left(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	params := &rpctypes.CreateTxIn{
+		Execer:     types.ExecName(pty.UnfreezeX),
+		ActionName: pty.Action_CreateUnfreeze,
+		Payload:    types.MustPBToJSON(create),
+	}
+
+	rpcLaddr, _ := cmd.Flags().GetString("rpc_laddr")
+	ctx := jsonclient.NewRPCCtx(rpcLaddr, "Chain33.CreateTransaction", params, nil)
+	ctx.RunWithoutMarshal()
+}
+
+
+func decreaseAmountCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "decrease_amount",
+		Short: "create decrease amount means unfreeze construct",
+		Run:   decrease,
+	}
+	cmd = createFlag(cmd)
+	cmd.Flags().Int64P("ten_thousandth", "", 0, "input/10000 of total")
+	cmd.MarkFlagRequired("amount")
+
+	cmd.Flags().Int64P("period", "p", 0, "period in second")
+	cmd.MarkFlagRequired("period")
+
+	cmd.Flags().Float64P("first_decrease_amount", "f", 0, "first decrease amount")
+	cmd.MarkFlagRequired("period")
+
+	cmd.Flags().Int64P("decrease_period", "d", 0, "decrease period in second")
+	cmd.MarkFlagRequired("period")
+
+	cmd.Flags().Int64P("decrease_nums", "n", 0, "decrease nums")
+	cmd.MarkFlagRequired("period")
+	return cmd
+}
+
+func decrease(cmd *cobra.Command, args []string) {
+	create, err := getCreateFlags(cmd)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+
+	tenThousandth, _ := cmd.Flags().GetInt64("ten_thousandth")
+	period, _ := cmd.Flags().GetInt64("period")
+	firstDecreaseAmount, _ := cmd.Flags().GetFloat64("first_decrease_amount")
+	amountInt64 := int64(math.Trunc((firstDecreaseAmount+0.0000001)*1e4)) * 1e4
+	decreasePeriod, _ := cmd.Flags().GetInt64("decrease_period")
+	decreaseNums, _ := cmd.Flags().GetInt64("decrease_nums")
+	create.Means = pty.DecreaseAmountX
+	create.MeansOpt = &pty.UnfreezeCreate_DecreaseAmount{
+		DecreaseAmount: &pty.DecreaseAmount{Period: period, TenThousandth: tenThousandth,FirstDecreaseAmount:amountInt64,DecreasePeriod:decreasePeriod,DecreaseNums:decreaseNums}}
+
+	if period <= 0 {
+		fmt.Fprintf(os.Stderr, "period must be positive interge")
+		return
+	}
+
+	if tenThousandth <= 0 || tenThousandth >= 10000 {
+		fmt.Fprintf(os.Stderr, "tenThousandth must be 0~10000")
+		return
+	}
+
+	if firstDecreaseAmount <= 0 {
+		fmt.Fprintf(os.Stderr, "firstDecreaseAmount must be > 0")
+		return
+	}
+
+	if decreasePeriod <= 0 {
+		fmt.Fprintf(os.Stderr, "decreasePeriod must be > 0")
+		return
+	}
+
+	if decreaseNums <= 0 {
+		fmt.Fprintf(os.Stderr, "decreaseNums must be > 0")
+		return
+	}
 	params := &rpctypes.CreateTxIn{
 		Execer:     types.ExecName(pty.UnfreezeX),
 		ActionName: pty.Action_CreateUnfreeze,

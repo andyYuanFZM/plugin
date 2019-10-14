@@ -26,7 +26,12 @@ func (u *Unfreeze) execLocal(receiptData *types.ReceiptData, index int) (*types.
 			if err != nil {
 				return nil, err
 			}
-			err = update(table, receipt.Current)
+			terminateHeight, terminateTime := int64(0), int64(0)
+			if log.Ty == uf.TyLogTerminateUnfreeze {
+				terminateHeight = u.GetHeight()
+				terminateTime = u.GetBlockTime()
+			}
+			err = update(table, receipt.Current, terminateHeight, terminateTime)
 			if err != nil {
 				return nil, err
 			}

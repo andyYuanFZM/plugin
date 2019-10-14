@@ -26,7 +26,12 @@ func (u *Unfreeze) execDelLocal(receiptData *types.ReceiptData, index int) (*typ
 			if err != nil {
 				return nil, err
 			}
-			err = update(table, receipt.Prev)
+			terminateHeight, terminateTime := int64(0), int64(0)
+			if log.Ty == uf.TyLogTerminateUnfreeze {
+				terminateHeight = u.GetHeight()
+				terminateTime = u.GetBlockTime()
+			}
+			err = update(table, receipt.Prev,terminateHeight, terminateTime)
 			if err != nil {
 				return nil, err
 			}

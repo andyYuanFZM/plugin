@@ -17,4 +17,8 @@ var (
 	ErrNoPrivilege = errors.New("ErrNoPrivilege")
 	// ErrTerminated 已经被取消过了
 	ErrTerminated = errors.New("ErrTerminated")
+	//ErrUnfreezeNotRevoke 不可撤销
+	ErrUnfreezeNotRevoke = errors.New("ErrUnfreezeNotRevoke")
+	//err 收益地址不能为创建地址
+	ErrBenefitNotSameToCreator = errors.New("ErrBenefitNotSameToCreator")
 )

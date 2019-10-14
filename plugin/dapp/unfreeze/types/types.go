@@ -27,6 +27,7 @@ func init() {
 	types.RegisterDappFork(name, "Enable", 0)
 	types.RegisterDappFork(name, ForkTerminatePartX, 1298600)
 	types.RegisterDappFork(name, ForkUnfreezeIDX, 1450000)
+	types.RegisterDappFork(name, ForkIsRevokeX, 3500000)
 }
 
 //getRealExecName
@@ -76,7 +77,7 @@ func (u *UnfreezeType) GetTypeMap() map[string]int32 {
 
 // CreateTx 创建交易
 func (u *UnfreezeType) CreateTx(action string, message json.RawMessage) (*types.Transaction, error) {
-	tlog.Error("UnfreezeType.CreateTx", "action", action, "message", string(message))
+	tlog.Info("UnfreezeType.CreateTx", "action", action, "message", string(message))
 	if action == Action_CreateUnfreeze {
 		var param UnfreezeCreate
 		err := types.JSONToPB(message, &param)
@@ -113,7 +114,7 @@ func (u *UnfreezeType) RPC_UnfreezeCreateTx(parm *UnfreezeCreate) (*types.Transa
 
 // CreateUnfreezeCreateTx 创建冻结合约交易
 func CreateUnfreezeCreateTx(title string, parm *UnfreezeCreate) (*types.Transaction, error) {
-	tlog.Error("CreateUnfreezeCreateTx", "parm", parm)
+	tlog.Info("CreateUnfreezeCreateTx", "parm", parm)
 	if parm == nil {
 		tlog.Error("RPC_UnfreezeCreateTx", "parm", parm)
 		return nil, types.ErrInvalidParam

@@ -7,6 +7,7 @@ package executor
 import (
 	"github.com/33cn/chain33/account"
 	dbm "github.com/33cn/chain33/common/db"
+	"github.com/33cn/chain33/common/address"
 	"github.com/33cn/chain33/system/dapp"
 	"github.com/33cn/chain33/types"
 	pty "github.com/33cn/plugin/plugin/dapp/unfreeze/types"
@@ -17,7 +18,14 @@ func (u *Unfreeze) Exec_Create(payload *pty.UnfreezeCreate, tx *types.Transactio
 	if payload.AssetExec == "" || payload.AssetSymbol == "" || payload.TotalCount <= 0 || payload.Means == "" {
 		return nil, types.ErrInvalidParam
 	}
-
+	if types.IsDappFork(u.GetHeight(), pty.UnfreezeX, pty.ForkIsRevokeX) {
+		if ok := address.CheckAddress(payload.Beneficiary);ok != nil {
+			return nil,types.ErrInvalidAddress
+		}
+		if payload.Beneficiary == tx.From() {
+			return nil,pty.ErrBenefitNotSameToCreator
+		}
+	}
 	unfreeze, err := u.newEntity(payload, tx)
 	if err != nil {
 		uflog.Error("unfreeze create entity", "addr", tx.From(), "payload", payload)
@@ -94,6 +102,11 @@ func (u *Unfreeze) Exec_Terminate(payload *pty.UnfreezeTerminate, tx *types.Tran
 	if err != nil {
 		return nil, err
 	}
+	if types.IsDappFork(u.GetHeight(), pty.UnfreezeX, pty.ForkIsRevokeX) {
+		if unfreeze.IsRevoke {
+			return nil,pty.ErrUnfreezeNotRevoke
+		}
+	}
 	if tx.From() != unfreeze.Initiator {
 		uflog.Error("unfreeze terminate no privilege", "err", pty.ErrUnfreezeID, "initiator",
 			unfreeze.Initiator, "from", tx.From())
@@ -123,6 +136,7 @@ func (u *Unfreeze) newEntity(payload *pty.UnfreezeCreate, tx *types.Transaction)
 	id := unfreezeID(tx.Hash())
 	unfreeze := &pty.Unfreeze{
 		UnfreezeID:  string(id),
+		//UnfreezeLabel:payload.UnfreezeLabel,
 		StartTime:   payload.StartTime,
 		AssetExec:   payload.AssetExec,
 		AssetSymbol: payload.AssetSymbol,
@@ -131,6 +145,11 @@ func (u *Unfreeze) newEntity(payload *pty.UnfreezeCreate, tx *types.Transaction)
 		Initiator:   tx.From(),
 		Beneficiary: payload.Beneficiary,
 		Means:       payload.Means,
+		//IsRevoke:	payload.IsRevoke,
+	}
+	if types.IsDappFork(u.GetHeight(), pty.UnfreezeX, pty.ForkIsRevokeX) {
+		unfreeze.UnfreezeLabel = payload.UnfreezeLabel
+		unfreeze.IsRevoke = payload.IsRevoke
 	}
 	if unfreeze.StartTime == 0 {
 		unfreeze.StartTime = u.GetBlockTime()
