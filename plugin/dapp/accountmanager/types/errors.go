@@ -1,12 +1,14 @@
 package types
 
-import "fmt"
+import "errors"
 
 // some errors definition
 var (
-	ErrAccountIDExist      = fmt.Errorf("%s", "The account ID has been registered!")
-	ErrAccountIDNotExist   = fmt.Errorf("%s", "The account ID is not exist")
-	ErrAccountIDNotPermiss = fmt.Errorf("%s", "You don't have permission to do that!")
-	ErrAssetBalance        = fmt.Errorf("%s", "Insufficient balance!")
-	ErrNotAdmin            = fmt.Errorf("%s", "No adiministrator privileges!")
+	ErrAccountIsFrozen     = errors.New("AccountHasBeenFrozen")
+	ErrAccountIsLowLevel   = errors.New("AccountIsLowLevel")
+	ErrAccountIDExist      = errors.New("The account ID has been registered!")
+	ErrAccountIDNotExist   = errors.New("The account ID is not exist")
+	ErrAccountIDNotPermiss = errors.New("You don't have permission to do that!")
+	ErrAssetBalance        = errors.New("Insufficient balance!")
+	ErrNotAdmin            = errors.New("No adiministrator privileges!")
 )

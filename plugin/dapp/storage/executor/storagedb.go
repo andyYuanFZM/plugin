@@ -10,6 +10,8 @@ import (
 	dbm "github.com/33cn/chain33/common/db"
 	"github.com/33cn/chain33/types"
 	ety "github.com/33cn/plugin/plugin/dapp/storage/types"
+	ac "github.com/33cn/plugin/plugin/dapp/accountmanager/executor"
+	et "github.com/33cn/plugin/plugin/dapp/accountmanager/types"
 	"github.com/golang/protobuf/proto"
 )
 
@@ -45,6 +47,13 @@ func (s *StorageAction) ContentStorage(payload *ety.ContentOnlyNotaryStorage) (*
 	var logs []*types.ReceiptLog
 	var kvs []*types.KeyValue
 	cfg := s.api.GetConfig()
+
+	status, _ ,_:= ac.GetStatusAndLevel(s.localdb, s.fromaddr)
+	if (status != et.Normal) {
+		// 冻结或其它状态
+		return nil, et.ErrAccountIsFrozen
+	}
+
 	if cfg.IsDappFork(s.height, ety.StorageX, ety.ForkStorageLocalDB) {
 		key := payload.Key
 		op := payload.Op
@@ -85,9 +94,17 @@ func (s *StorageAction) ContentStorage(payload *ety.ContentOnlyNotaryStorage) (*
 
 //HashStorage ...
 func (s *StorageAction) HashStorage(payload *ety.HashOnlyNotaryStorage) (*types.Receipt, error) {
+
 	var logs []*types.ReceiptLog
 	var kvs []*types.KeyValue
 	cfg := s.api.GetConfig()
+
+	status, _ ,_:= ac.GetStatusAndLevel(s.localdb, s.fromaddr)
+	if (status != et.Normal) {
+		// 冻结或其它状态
+		return nil, et.ErrAccountIsFrozen
+	}
+
 	if cfg.IsDappFork(s.height, ety.StorageX, ety.ForkStorageLocalDB) {
 		key := payload.Key
 		if key == "" {
@@ -113,9 +130,17 @@ func (s *StorageAction) HashStorage(payload *ety.HashOnlyNotaryStorage) (*types.
 
 //LinkStorage ...
 func (s *StorageAction) LinkStorage(payload *ety.LinkNotaryStorage) (*types.Receipt, error) {
+
 	var logs []*types.ReceiptLog
 	var kvs []*types.KeyValue
 	cfg := s.api.GetConfig()
+
+	status, _ ,_:= ac.GetStatusAndLevel(s.localdb, s.fromaddr)
+	if (status != et.Normal) {
+		// 冻结或其它状态
+		return nil, et.ErrAccountIsFrozen
+	}
+
 	if cfg.IsDappFork(s.height, ety.StorageX, ety.ForkStorageLocalDB) {
 		key := payload.Key
 		if key == "" {
@@ -143,6 +168,18 @@ func (s *StorageAction) EncryptStorage(payload *ety.EncryptNotaryStorage) (*type
 	var logs []*types.ReceiptLog
 	var kvs []*types.KeyValue
 	cfg := s.api.GetConfig()
+
+	status, level ,_:= ac.GetStatusAndLevel(s.localdb, s.fromaddr)
+	if (status != et.Normal) {
+		// 冻结或其它状态
+		return nil, et.ErrAccountIsFrozen
+	}
+
+	if (level <= 0) {
+		// 普通权限不能操作
+		return nil, et.ErrAccountIsLowLevel
+	}
+
 	if cfg.IsDappFork(s.height, ety.StorageX, ety.ForkStorageLocalDB) {
 		key := payload.Key
 		if key == "" {
@@ -167,6 +204,7 @@ func (s *StorageAction) EncryptStorage(payload *ety.EncryptNotaryStorage) (*type
 
 //EncryptShareStorage ...
 func (s *StorageAction) EncryptShareStorage(payload *ety.EncryptShareNotaryStorage) (*types.Receipt, error) {
+
 	var logs []*types.ReceiptLog
 	var kvs []*types.KeyValue
 	cfg := s.api.GetConfig()
@@ -200,13 +238,15 @@ func (s *StorageAction) EncryptAdd(payload *ety.EncryptNotaryAdd) (*types.Receip
 
 	store, err := QueryStorage(s.db, s.localdb, payload.Key)
 	if err != nil {
-		return nil, fmt.Errorf("EncryptAdd.QueryStorage. err:%v", err)
+		fmt.Errorf("EncryptAdd.QueryStorage. err:%v", err)
+		return nil, err
 	}
 
 	cipherText := store.GetEncryptStorage().EncryptContent
 	res, err := paillier.CiphertextAddBytes(cipherText, payload.EncryptAdd)
 	if err != nil {
-		return nil, fmt.Errorf("EncryptAdd.CiphertextAddBytes. err:%v", err)
+		fmt.Errorf("EncryptAdd.CiphertextAddBytes. err:%v", err)
+		return nil, err
 	}
 
 	store.GetEncryptStorage().EncryptContent = res

@@ -164,11 +164,19 @@ func (n *Node) sendTx(tx *types.P2PTx, p2pData *types.BroadCastData, peerVersion
 
 	isLightSend := peerVersion >= lightBroadCastVersion && ttl >= n.nodeInfo.cfg.LightTxTTL
 	//检测冗余发送
-	if n.addIgnoreSendPeerAtomic(txSendFilter, txHash, pid) {
-		return false
+	ignoreSend := false
+
+	//短哈希广播不记录发送过滤
+	if !isLightSend {
+		ignoreSend = n.addIgnoreSendPeerAtomic(txSendFilter, txHash, pid)
 	}
 
-	//log.Debug("P2PSendTx", "txHash", txHash, "ttl", ttl, "isLightSend", isLightSend, "peerAddr", peerAddr, "ignoreSend", ignoreSend)
+	log.Debug("P2PSendTx", "txHash", txHash, "ttl", ttl, "isLightSend", isLightSend,
+		"peerAddr", peerAddr, "ignoreSend", ignoreSend)
+
+	if ignoreSend {
+		return false
+	}
 
 	//新版本且ttl达到设定值
 	if isLightSend {
@@ -193,7 +201,7 @@ func (n *Node) recvTx(tx *types.P2PTx, pid, peerAddr string) {
 	n.addIgnoreSendPeerAtomic(txSendFilter, txHash, pid)
 	//重复接收
 	isDuplicate := txHashFilter.AddWithCheckAtomic(txHash, true)
-	//log.Debug("recvTx", "tx", txHash, "ttl", tx.GetRoute().GetTTL(), "peerAddr", peerAddr, "duplicateTx", isDuplicate)
+	log.Debug("recvTx", "tx", txHash, "ttl", tx.GetRoute().GetTTL(), "peerAddr", peerAddr, "duplicateTx", isDuplicate)
 	if isDuplicate {
 		return
 	}
@@ -216,7 +224,7 @@ func (n *Node) recvLtTx(tx *types.LightTx, pid, peerAddr string, pubPeerFunc pub
 	//将节点id添加到发送过滤, 避免冗余发送
 	n.addIgnoreSendPeerAtomic(txSendFilter, txHash, pid)
 	exist := txHashFilter.Contains(txHash)
-	//log.Debug("recvLtTx", "txHash", txHash, "ttl", tx.GetRoute().GetTTL(), "peerAddr", peerAddr, "exist", exist)
+	log.Debug("recvLtTx", "txHash", txHash, "ttl", tx.GetRoute().GetTTL(), "peerAddr", peerAddr, "exist", exist)
 	//本地不存在, 需要向对端节点发起完整交易请求. 如果存在则表示本地已经接收过此交易, 不做任何操作
 	if !exist {
 
@@ -348,10 +356,10 @@ func (n *Node) recvLtBlock(ltBlock *types.LightBlock, pid, peerAddr string, pubP
 			},
 		},
 	}
-	//需要将不完整的block预存
-	ltBlockCache.Add(blockHash, block, block.Size())
 	//pub to specified peer
 	pubPeerFunc(query, pid)
+	//需要将不完整的block预存
+	ltBlockCache.Add(blockHash, block, block.Size())
 }
 
 func (n *Node) recvQueryData(query *types.P2PQueryData, pid, peerAddr string, pubPeerFunc pubFuncType) {
@@ -376,7 +384,6 @@ func (n *Node) recvQueryData(query *types.P2PQueryData, pid, peerAddr string, pu
 		p2pTx := &types.P2PTx{Tx: txList.Txs[0]}
 		//再次发送完整交易至节点, ttl重设为1
 		p2pTx.Route = &types.P2PRoute{TTL: 1}
-		n.removeIgnoreSendPeerAtomic(txSendFilter, txHash, pid)
 		pubPeerFunc(p2pTx, pid)
 
 	} else if blcReq := query.GetBlockTxReq(); blcReq != nil {
@@ -437,10 +444,10 @@ func (n *Node) recvQueryReply(rep *types.P2PBlockTxReply, pid, peerAddr string, 
 				},
 			},
 		}
-		block.Txs = nil
-		ltBlockCache.Add(rep.BlockHash, block, block.Size())
 		//pub to specified peer
 		pubPeerFunc(query, pid)
+		block.Txs = nil
+		ltBlockCache.Add(rep.BlockHash, block, block.Size())
 	}
 }
 
@@ -484,16 +491,4 @@ func (n *Node) addIgnoreSendPeerAtomic(filter *utils.Filterdata, key, pid string
 	_, exist = info.ignoreSendPeers[pid]
 	info.ignoreSendPeers[pid] = true
 	return exist
-}
-
-// 删除发送过滤器记录
-func (n *Node) removeIgnoreSendPeerAtomic(filter *utils.Filterdata, key, pid string) {
-
-	filter.GetAtomicLock()
-	defer filter.ReleaseAtomicLock()
-	if filter.Contains(key) {
-		data, _ := filter.Get(key)
-		info := data.(*sendFilterInfo)
-		delete(info.ignoreSendPeers, pid)
-	}
 }

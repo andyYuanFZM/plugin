@@ -434,3 +434,14 @@ func (evm *EVM) Create(caller ContractRef, contractAddr common.Address, code []b
 
 	return ret, snapshot, contract.Gas, err
 }
+
+func (evm *EVM) Destroy(caller ContractRef, addr common.Address) error {
+	evm.StateDB.Snapshot()
+
+	balance := evm.StateDB.GetBalance(addr.String())
+	// 合约自毁后，将剩余金额返还给创建者
+	evm.StateDB.AddBalance(caller.Address().String(), addr.String(), balance)
+	evm.StateDB.Suicide(addr.String())
+
+	return nil
+}

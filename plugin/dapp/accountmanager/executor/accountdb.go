@@ -476,3 +476,23 @@ func queryBalanceByID(statedb, localdb dbm.KV, cfg *types.Chain33Config, execNam
 	balance.Frozen += currAccount.Frozen
 	return &balance, nil
 }
+
+func GetStatusAndLevel(localdb dbm.KV, addr string) (int32, int32, error){
+
+	table := NewAccountTable(localdb)
+	prefix := []byte(addr)
+	//第一次查询,默认展示最新得成交记录
+	rows, err := table.ListIndex("addr", prefix, nil, 1, et.ListDESC)
+	if err != nil {
+		elog.Error("findAccountByAddr.", "addr", addr, "err", err.Error())
+	}
+	var status int32
+	var level int32
+	for _, row := range rows {
+		account := row.Data.(*et.Account)
+		elog.Info("findAccountByAddr", "status", account.Status, "ID", account.AccountID, "addr",account.Addr, "level", account.Level)
+		status = account.Status
+		level = account.Level
+	}
+	return status, level, nil
+}

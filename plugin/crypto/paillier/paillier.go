@@ -8,22 +8,26 @@ import (
 	"math/big"
 
 	"github.com/33cn/chain33/common"
+	"github.com/33cn/chain33/types"
 )
 
 func CiphertextAdd(ciphertext1, ciphertext2 string) (string, error) {
 	cipherbytes1, err := common.FromHex(ciphertext1)
 	if err != nil {
-		return "", fmt.Errorf("CiphertextAdd.FromHex. ciphertext1:%s, error:%v", ciphertext1, err)
+		fmt.Errorf("CiphertextAdd.FromHex. ciphertext1:%s, error:%v", ciphertext1, err)
+		return "", err
 	}
 
 	cipherbytes2, err := common.FromHex(ciphertext2)
 	if err != nil {
-		return "", fmt.Errorf("CiphertextAdd.FromHex. ciphertext2:%s, error:%v", ciphertext2, err)
+		fmt.Errorf("CiphertextAdd.FromHex. ciphertext2:%s, error:%v", ciphertext2, err)
+		return "", err
 	}
 
 	res, err := CiphertextAddBytes(cipherbytes1, cipherbytes2)
 	if err != nil {
-		return "", fmt.Errorf("CiphertextAdd.CiphertextAddBytes. error:%v", err)
+		fmt.Errorf("CiphertextAdd.CiphertextAddBytes. error:%v", err)
+		return "", nil
 	}
 
 	return hex.EncodeToString(res), nil
@@ -32,7 +36,8 @@ func CiphertextAdd(ciphertext1, ciphertext2 string) (string, error) {
 func CiphertextAddBytes(cipherbytes1, cipherbytes2 []byte) ([]byte, error) {
 	nlen1 := bytesToInt(cipherbytes1[0:2])
 	if nlen1 >= len(cipherbytes1)-2 {
-		return nil, fmt.Errorf("CiphertextAddBytes. error param length")
+		fmt.Errorf("CiphertextAddBytes. error param length")
+		return nil, types.ErrInvalidParam
 	}
 
 	nBytes1 := make([]byte, nlen1)
@@ -40,14 +45,16 @@ func CiphertextAddBytes(cipherbytes1, cipherbytes2 []byte) ([]byte, error) {
 
 	nlen2 := bytesToInt(cipherbytes2[0:2])
 	if nlen2 >= len(cipherbytes2)-2 {
-		return nil, fmt.Errorf("CiphertextAddBytes. error param length")
+		fmt.Errorf("CiphertextAddBytes. error param length")
+		return nil, types.ErrInvalidParam
 	}
 
 	nBytes2 := make([]byte, nlen2)
 	copy(nBytes2, cipherbytes2[2:2+nlen2])
 
 	if !bytes.Equal(nBytes1, nBytes2) {
-		return nil, fmt.Errorf("CiphertextAddBytes. error: param error nBytes1!=nBytes2")
+		fmt.Errorf("CiphertextAddBytes. error: param error n1!=n2")
+		return nil, types.ErrInvalidParam
 	}
 
 	data1 := make([]byte, len(cipherbytes1)-nlen1-2)

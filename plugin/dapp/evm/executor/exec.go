@@ -76,18 +76,22 @@ func (evm *EVMExecutor) innerExec(msg *common.Message, txHash []byte, index int,
 		ret, snapshot, leftOverGas, vmerr = env.Create(runtime.AccountRef(msg.From()), contractAddr, msg.Data(), context.GasLimit, execName, msg.Alias(), msg.ABI())
 	} else {
 		inData := msg.Data()
-		// 在这里进行ABI和十六进制的调用参数转换
-		if len(msg.ABI()) > 0 && cfg.IsDappFork(evm.GetHeight(), "evm", evmtypes.ForkEVMABI) {
-			funcName, packData, err := abi.Pack(msg.ABI(), evm.mStateDB.GetAbi(msg.To().String()), readOnly)
-			if err != nil {
-				return receipt, err
+		if len(inData) == 0 && len(msg.ABI()) == 0 {
+			env.Destroy(runtime.AccountRef(msg.From()), *msg.To())
+		} else {
+			// 在这里进行ABI和十六进制的调用参数转换
+			if len(msg.ABI()) > 0 && cfg.IsDappFork(evm.GetHeight(), "evm", evmtypes.ForkEVMABI) {
+				funcName, packData, err := abi.Pack(msg.ABI(), evm.mStateDB.GetAbi(msg.To().String()), readOnly)
+				if err != nil {
+					return receipt, err
+				}
+				inData = packData
+				methodName = funcName
+				log.Debug("call contract ", "abi funcName", funcName, "packData", common.Bytes2Hex(inData))
 			}
-			inData = packData
-			methodName = funcName
-			log.Debug("call contract ", "abi funcName", funcName, "packData", common.Bytes2Hex(inData))
+			ret, snapshot, leftOverGas, vmerr = env.Call(runtime.AccountRef(msg.From()), *msg.To(), inData, context.GasLimit, msg.Value())
+			log.Debug("call(create) contract ", "input", common.Bytes2Hex(inData))
 		}
-		ret, snapshot, leftOverGas, vmerr = env.Call(runtime.AccountRef(msg.From()), *msg.To(), inData, context.GasLimit, msg.Value())
-		log.Debug("call(create) contract ", "input", common.Bytes2Hex(inData))
 	}
 	usedGas := msg.GasLimit() - leftOverGas
 	logMsg := "call contract details:"

@@ -6,15 +6,22 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/33cn/chain33/common/log/log15"
+	"google.golang.org/grpc"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/33cn/chain33/common"
@@ -23,10 +30,11 @@ import (
 	rpctypes "github.com/33cn/chain33/rpc/types"
 	"github.com/33cn/chain33/types"
 	ty "github.com/33cn/plugin/plugin/dapp/valnode/types"
+	_ "google.golang.org/grpc/encoding/gzip"
 )
 
 const fee = 1e6
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789-=_+=/<>!@#$%^&"
 
 var r *rand.Rand
 
@@ -55,7 +63,7 @@ func main() {
 			fmt.Print(errors.New("参数错误").Error())
 			return
 		}
-		Put(argsWithoutProg[1], argsWithoutProg[2], "")
+		Put(argsWithoutProg[1], argsWithoutProg[2], nil)
 	case "get":
 		if len(argsWithoutProg) != 3 {
 			fmt.Print(errors.New("参数错误").Error())
@@ -81,23 +89,24 @@ func LoadHelp() {
 }
 
 // Perf ...
-func Perf(ip, size, num, interval, duration string) {
+func Perf(ip, txsize, num, sleepinterval, totalduration string) {
 	var numThread int
 	numInt, err := strconv.Atoi(num)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	intervalInt, err := strconv.Atoi(interval)
+	sleep, err := strconv.Atoi(sleepinterval)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	durInt, err := strconv.Atoi(duration)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return
-	}
+	//durInt, err := strconv.Atoi(totalduration)
+	//if err != nil {
+	//	fmt.Fprintln(os.Stderr, err)
+	//	return
+	//}
+	sizeInt, _ := strconv.Atoi(txsize)
 	if numInt < 10 {
 		numThread = 1
 	} else if numInt > 100 {
@@ -105,52 +114,144 @@ func Perf(ip, size, num, interval, duration string) {
 	} else {
 		numThread = numInt / 10
 	}
-	maxTxPerAcc := 50
+	numThread = runtime.NumCPU()
 	ch := make(chan struct{}, numThread)
+	txChan := make(chan *types.Transaction, numInt)
+	//payload := RandStringBytes(sizeInt)
+	var blockHeight int64
+
+	go func() {
+		ch <- struct{}{}
+		conn := newGrpcConn(ip)
+		defer conn.Close()
+		gcli := types.NewChain33Client(conn)
+		for {
+
+			height, err := getHeight(gcli)
+			if err != nil {
+				//conn.Close()
+				log.Error("getHeight", "err", err)
+				//conn = newGrpcConn(ip)
+				//gcli = types.NewChain33Client(conn)
+				time.Sleep(time.Second)
+			}else {
+				atomic.StoreInt64(&blockHeight, height)
+			}
+			time.Sleep(time.Millisecond * 500)
+		}
+	}()
+	<-ch
+
 	for i := 0; i < numThread; i++ {
 		go func() {
-			txCount := 0
 			_, priv := genaddress()
-			for sec := 0; durInt == 0 || sec < durInt; {
-				setTxHeight(ip)
+			for {
+
+				height := atomic.LoadInt64(&blockHeight)
 				for txs := 0; txs < numInt/numThread; txs++ {
-					if txCount >= maxTxPerAcc {
-						_, priv = genaddress()
-						txCount = 0
-					}
-					Put(ip, size, common.ToHex(priv.Bytes()))
-					txCount++
+					tx := txPool.Get().(*types.Transaction)
+					tx.To = execAddr
+					tx.Fee = rand.Int63()
+					tx.Nonce = time.Now().UnixNano()
+					tx.Expire = height + types.TxHeightFlag + types.LowAllowPackHeight
+					tx.Payload = RandStringBytes(sizeInt)
+					tx.Sign(types.SECP256K1, priv)
+					txChan <- tx
 				}
-				time.Sleep(time.Second * time.Duration(intervalInt))
-				sec += intervalInt
+				if sleep > 0 {
+					time.Sleep(time.Second)
+				}
 			}
-			ch <- struct{}{}
 		}()
 	}
+
+
+
+	for i:=0; i< numThread*2; i++ {
+		go func() {
+			conn := newGrpcConn(ip)
+			defer conn.Close()
+			gcli := types.NewChain33Client(conn)
+
+
+			for tx := range txChan {
+				_, err := gcli.SendTransaction(context.Background(), tx, grpc.UseCompressor("gzip"))
+
+				txPool.Put(tx)
+				if err != nil {
+					if strings.Contains(err.Error(), "ErrTxExpire"){
+						continue
+					}
+					if strings.Contains(err.Error(), "ErrMemFull"){
+						time.Sleep(time.Second)
+						continue
+					}
+
+					log.Error("sendtx", "err", err)
+					time.Sleep(time.Second)
+					//conn.Close()
+					//conn = newGrpcConn(ip)
+					//gcli = types.NewChain33Client(conn)
+				}
+			}
+		}()
+	}
+
 	for j := 0; j < numThread; j++ {
 		<-ch
 	}
 }
 
+var (
+	log = log15.New()
+	execAddr = address.ExecAddress("user.write")
+)
+
+func getHeight(gcli types.Chain33Client) (int64, error) {
+	header, err := gcli.GetLastHeader(context.Background(), &types.ReqNil{})
+	if err != nil {
+		log.Error("getHeight", "err", err)
+		return 0, err
+	}
+	return header.Height, nil
+}
+
+var txPool = sync.Pool{
+	New: func() interface{}{
+		tx := &types.Transaction{Execer: []byte("user.write")}
+		return tx
+	},
+}
+
+func newGrpcConn(host string) *grpc.ClientConn{
+
+	conn, err := grpc.Dial(host, grpc.WithInsecure())
+	for err != nil {
+		log.Error("grpc dial", "err", err)
+		time.Sleep(time.Millisecond * 100)
+		conn, err = grpc.Dial(host, grpc.WithInsecure())
+	}
+	return conn
+}
+
 // Put ...
-func Put(ip string, size string, privkey string) {
+func Put(ip string, size string, privkey crypto.PrivKey) {
 	sizeInt, err := strconv.Atoi(size)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
 	}
 	url := "http://" + ip + ":8801"
-	if privkey == "" {
-		_, priv := genaddress()
-		privkey = common.ToHex(priv.Bytes())
+	if privkey == nil {
+		_, privkey = genaddress()
 	}
 	payload := RandStringBytes(sizeInt)
 	//fmt.Println("payload:", common.ToHex([]byte(payload)))
 
 	tx := &types.Transaction{Execer: []byte("user.write"), Payload: []byte(payload), Fee: 1e6}
 	tx.To = address.ExecAddress("user.write")
-	tx.Expire = TxHeightOffset + types.TxHeightFlag
-	tx.Sign(types.SECP256K1, getprivkey(privkey))
+	tx.Expire = TxHeightOffset + types.TxHeightFlag + types.LowAllowPackHeight
+	tx.Sign(types.SECP256K1, privkey)
 	poststr := fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"Chain33.SendTransaction","params":[{"data":"%v"}]}`,
 		common.ToHex(types.Encode(tx)))
 
@@ -165,8 +266,8 @@ func Put(ip string, size string, privkey string) {
 		fmt.Println(err)
 		return
 	}
-
-	fmt.Printf("returned JSON: %s\n", string(b))
+	log.Debug("sendtx", "result", string(b))
+	//fmt.Printf("returned JSON: %s\n", string(b))
 }
 
 // Get ...
@@ -211,7 +312,7 @@ func setTxHeight(ip string) {
 		fmt.Println(err)
 		return
 	}
-	TxHeightOffset = msg.Result.Height
+	TxHeightOffset = msg.Result.Height + types.LowAllowPackHeight
 	fmt.Println("TxHeightOffset:", TxHeightOffset)
 }
 
@@ -253,13 +354,13 @@ func genaddress() (string, crypto.PrivKey) {
 }
 
 // RandStringBytes ...
-func RandStringBytes(n int) string {
+func RandStringBytes(n int) []byte {
 	b := make([]byte, n)
 	rand.Seed(time.Now().UnixNano())
 	for i := range b {
 		b[i] = letterBytes[rand.Intn(len(letterBytes))]
 	}
-	return string(b)
+	return b
 }
 
 // ValNode ...

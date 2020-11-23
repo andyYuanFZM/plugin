@@ -122,7 +122,7 @@ func (mdb *MemoryStateDB) SubBalance(addr, caddr string, value uint64) {
 // AddBalance 向外部账户地址打钱（钱其实是外部账户之前打到合约账户中的）
 func (mdb *MemoryStateDB) AddBalance(addr, caddr string, value uint64) {
 	res := mdb.Transfer(caddr, addr, value)
-	log15.Debug("transfer result", "from", addr, "to", caddr, "amount", value, "result", res)
+	log15.Debug("transfer result", "from", caddr, "to", addr, "amount", value, "result", res)
 }
 
 // GetBalance 这里需要区分对待，如果是合约账户，则查看合约账户所有者地址在此合约下的余额；
