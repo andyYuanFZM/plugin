@@ -5,6 +5,8 @@ import (
 	drivers "github.com/33cn/chain33/system/dapp"
 	"github.com/33cn/chain33/types"
 	storagetypes "github.com/33cn/plugin/plugin/dapp/storage/types"
+	ac "github.com/33cn/plugin/plugin/dapp/accountmanager/executor"
+	et "github.com/33cn/plugin/plugin/dapp/accountmanager/types"
 )
 
 /*
@@ -62,6 +64,25 @@ func (s *storage) ExecutorOrder() int64 {
 
 // CheckTx 实现自定义检验交易接口，供框架调用
 func (s *storage) CheckTx(tx *types.Transaction, index int) error {
-	// implement code
+
+	var storage storagetypes.StorageAction
+	types.Decode(tx.GetPayload(), &storage)
+
+	from, _ := tx.GetViewFromToAddr()
+	elog.Error("=======================from address", from)
+	status, level ,_:= ac.GetStatusAndLevel(s.GetLocalDB(), from)
+	elog.Error("=======================status", status, "level", level)
+	// 冻结状态的账户，无法进行下一步交易
+	if (status != et.Normal) {
+		// 冻结或其它状态
+		return et.ErrAccountIsFrozen
+	}
+
+	if storage.Ty == storagetypes.TyEncryptStorageAction {
+		if (level <= 0) {
+			// 普通权限不能操作
+			return et.ErrAccountIsLowLevel
+		}
+	}
 	return nil
 }
