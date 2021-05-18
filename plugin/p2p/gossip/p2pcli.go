@@ -267,7 +267,7 @@ func (m *Cli) SendVersion(peer *Peer, nodeinfo *NodeInfo) (string, error) {
 	resp, err := peer.mconn.gcli.Version2(context.Background(), &pb.P2PVersion{Version: nodeinfo.channelVersion, Service: int64(nodeinfo.ServiceTy()), Timestamp: pb.Now().Unix(),
 		AddrRecv: peer.Addr(), AddrFrom: addrfrom, Nonce: int64(rand.Int31n(102040)),
 		UserAgent: hex.EncodeToString(in.Sign.GetPubkey()), StartHeight: blockheight}, grpc.FailFast(true))
-	log.Debug("SendVersion", "resp", resp, "addrfrom", addrfrom, "sendto", peer.Addr())
+	log.Debug("SendVersion", "resp", resp, "from", addrfrom, "to", peer.Addr())
 	if err != nil {
 		log.Error("SendVersion", "Verson", err.Error(), "peer", peer.Addr())
 		if err == pb.ErrVersion {
@@ -278,7 +278,7 @@ func (m *Cli) SendVersion(peer *Peer, nodeinfo *NodeInfo) (string, error) {
 	}
 
 	P2pComm.CollectPeerStat(err, peer)
-	log.Debug("SHOW VERSION BACK", "VersionBack", resp, "peer", peer.Addr())
+	log.Debug("SHOW VERSION BACK", "VersionBack", resp, "remote peer", peer.Addr())
 	_, ver := utils.DecodeChannelVersion(resp.GetVersion())
 	peer.version.SetVersion(ver)
 
@@ -286,7 +286,7 @@ func (m *Cli) SendVersion(peer *Peer, nodeinfo *NodeInfo) (string, error) {
 	if err == nil {
 		if ip != nodeinfo.GetExternalAddr().IP.String() {
 
-			log.Debug("sendVersion", "externalip", ip)
+			log.Debug("sendVersion", "expect ip", ip, "pre externalip", nodeinfo.GetExternalAddr().IP.String())
 			if peer.IsPersistent() {
 				//永久加入黑名单
 				nodeinfo.blacklist.Add(ip, 0)
@@ -561,7 +561,7 @@ func (m *Cli) GetNetInfo(msg *queue.Message, taskindex int64) {
 // CheckPeerNatOk check peer is ok or not
 func (m *Cli) CheckPeerNatOk(addr string, info *NodeInfo) bool {
 	//连接自己的地址信息做测试
-	return !(len(P2pComm.AddrRouteble([]string{addr}, info.channelVersion)) == 0)
+	return !(len(P2pComm.AddrRouteble([]string{addr}, info.channelVersion, info.cliCreds)) == 0)
 
 }
 
@@ -572,7 +572,8 @@ func (m *Cli) CheckSelf(addr string, nodeinfo *NodeInfo) bool {
 		log.Error("AddrRouteble", "NewNetAddressString", err.Error())
 		return false
 	}
-	conn, err := netaddr.DialTimeout(nodeinfo.channelVersion)
+
+	conn, err := netaddr.DialTimeout(nodeinfo.channelVersion, nodeinfo.cliCreds)
 	if err != nil {
 		return false
 	}

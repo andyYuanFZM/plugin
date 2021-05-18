@@ -6,6 +6,7 @@ Title="user.p.test."
 CoinSymbol="bty"
 # TestNet=true
 
+[crypto]
 [log]
 # 日志级别，支持debug(dbug)/info/warn/error(eror)/crit
 loglevel = "debug"
@@ -97,6 +98,7 @@ targetTimePerBlock = 16
 [mver.consensus.paracross]
 coinReward = 18
 coinDevFund = 12
+minerMode="normal"
 
 
 [consensus.sub.para]
